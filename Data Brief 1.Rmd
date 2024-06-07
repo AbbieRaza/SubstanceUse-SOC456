@@ -1,0 +1,308 @@
+---
+title: 'Data Brief #1'
+output: html_document
+author: Abbie Raza (1482784)
+editor_options: 
+  chunk_output_type: inline
+---
+
+-   necessary libraries
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(descr)
+library(DescTools)
+library(ggplot2)
+library(survey)
+```
+
+-   necessary functions
+
+```{r}
+Mode <- function(x) {
+a = table(x)	# x is a vector   # function to return mode value 
+return(a[which.max(a)])
+}
+```
+
+
+
+#1. Research Topic and Question 
+
+My research question is whether or not there is a link between socioeconomic status and substance use during the COVID-19 pandemic. In particular, I wanted to see if there was a significant relationship between socioeconomic status and its link with alcohol and cannabis use in Canada. In order to investigate this relationship, I have decided to use the *Canadian Perspectives Survey Series 6* provided by Statistics Canada. This survey includes questions related to use for all three types of substances and information necessary to infer their socioeconomic status. Namely, employment status and education levels as indicators of socioeconomic status. Historically, SES has been strongly correlated with substance use, where certain substances, like alcohol, are prominent among those of higher SES, while cannabis is prominent among lower SES individuals. Fundamental Cause Theory (FTC) explains that the reason for this could be because SES influences access to a large range of social and economic resources that protect health and prevent health disparities.
+
+Ultimately, I decided to look at the effects of alcohol and cannabis for this study. Reasons being that both substances have been studied quite extensively and more importantly, are legalized substances and are used recreationally in large social gatherings. While opioids are widely used in Canada, and have been causing a epidemic as of late, the sampling method used for the *Canadian Perspectives Survey Series 6* is limited because many groups were excluded from being randomly selected, such as people who live in remote locations, people living on Aboriginal reserves and those who are currently incarcerated. Due to this, there is not much information that can be used on opioids that have strong external validity. In summary, I want to examine the relationship between socioeconomic status and alcohol/cannabis use during the COVID-19 pandemic. 
+
+
+#2.) Data
+The data set I chose to use is the *Canadian Perspectives Survey Series 6: Substance Use and Stigma During the Pandemic* which was published by Statistics Canada. The main goal of this data collection was to look at substance use and abuse patterns along with the stigma associated with substance use. The data collection process was predominantly survey-based panel study, where participants were asked a series of questions relating to aspects like socioeconomic status, mental health, substance use (both prescription and nonprescription) and substance stigma. In total, there was 180 different variables that were measured in this data set. 
+
+The sample size for this study is 3941 Canadian individuals aged 15 years or older residing within the 10 provinces as of July 31st 2021. Additionally, a stratified, multi-stage probabilistic sampling was used to pick these individuals for this panel study. These individuals were randomly selected from the previous Labour Force Survey (LFS). People who were excluded from this study included people living on Aboriginal reserves and settlements, institutionalized people, and households living within remote areas with very low population density. Collection response rate was 54.4% whereas the cumulative response rate was 12.5%.
+For the purposes of my research project, I am only focusing on 8 different variables and a sample size of 3820. There is some missing data in this set, I plan to either fix this using a regression later on or to omit some pieces of data where there is consistently many missing entries for a single observation. 
+
+```{r}
+data <- read.csv("cpss-5311-E-2021-sus_F1.csv", header=TRUE) # original 
+d1 <- subset(subset(data,select = c(PEDUC_LC, PEMPSTC, ALC_05,ALC_20,ALC_35,CAN_05,CAN_15,CAN_30)))
+
+d1$PEDUC_LC[d1$PEDUC_LC > 96] <- NA
+d1$PEMPSTC[d1$PEMPSTC > 6] <- NA
+d1$ALC_05[d1$ALC_05 > 96] <- NA
+d1$ALC_20[d1$ALC_20 > 6] <- NA
+d1$ALC_35[d1$ALC_35 > 6] <- NA
+d1$CAN_05[d1$CAN_05 > 96] <- NA
+d1$CAN_15[d1$CAN_15 > 6] <- NA
+d1$CAN_30[d1$CAN_30 > 6] <- NA
+
+# d1[complete.cases(d1), ]
+```
+
+- recode variables
+```{r}
+# recode PEDUC_LC so it divides participants into those who have at least a bachelor's degree and those who do not.
+d1$BAPLUS <- rep(0,length(d1$PEDUC_LC))
+d1$BAPLUS <- ifelse(d1$PEDUC_LC >= 6, "Bachelor's", "No Bachelor's")
+table(d1$BAPLUS)
+
+
+# recode PEMPSTC (employment status) to include those who are employed and working, those who are absent from work and those are unemployed (EMPLOY)
+d1$EMPLOY <- rep(0,length(d1$PEMPSTC))
+d1$EMPLOY[d1$PEMPSTC == 1] <- "Employed and at work"
+d1$EMPLOY[d1$PEMPSTC == 2 | d1$PEMPSTC == 3] <- "Employed but absent from work"
+d1$EMPLOY[d1$PEMPSTC == 4] <- "Not employed"
+
+d1$EMPLOY <- factor(d1$EMPLOY, 
+                       levels = c("Employed and at work", 
+                                  "Employed but absent from work",
+                              
+                                  "Not employed"))
+table(d1$EMPLOY)
+
+# recode ALC_05 (frequency of alcohol drinks) to those who have had a drink at least once a month, none in the past 30 days and valid skip/not applicable to ALCFREQ
+
+d1$ALCFREQ <- rep(0,length(d1$ALC_05))
+d1$ALCFREQ [d1$ALC_05 ==1] <- "Yes"
+d1$ALCFREQ [d1$ALC_05 == 2] <- "No"
+d1$ALCFREQ [d1$ALC_05 == 3] <- "Never Drank Alcohol"
+
+d1$ALCFREQ <- factor(d1$ALCFREQ, 
+                       levels = c("Yes",
+                                  "No",
+                                  "Never Drank Alcohol"))
+table(d1$ALCFREQ)
+# recode ALC_20 to ALCCON to compare alcohol consumption after the pandemic
+d1$ALCCON <- rep(0,length(d1$ALC_20))
+d1$ALCCON [d1$ALC_20 == 1] <- "Increased"
+d1$ALCCON [d1$ALC_20 == 2] <- "Decreased"
+d1$ALCCON [d1$ALC_20 == 4] <- "Same"
+d1$ALCCON [d1$ALC_20 == 3 | d1$ALC_20 == 6] <- "Not Applicable/ Valid Skip"
+
+d1$ALCCON <- factor(d1$ALCCON, 
+                       levels = c("Increased",
+                                  "Decreased",
+                                  "Same", "Not Applicable/ Valid Skip"))
+table(d1$ALCCON)
+# recode ALC_35 to ALCPROB (problem with alcohol)
+d1$ALCPROB <- rep(0,length(d1$ALC_35))
+d1$ALCPROB [d1$ALC_35 == 1] <- "Yes"
+d1$ALCPROB [d1$ALC_35 == 2] <- "No"
+d1$ALCPROB [d1$ALC_35 == 6] <- "Valid Skip"
+
+d1$ALCPROB <- factor(d1$ALCPROB, 
+                       levels = c("Yes",
+                                  "No",
+                                  "Valid Skip"))
+table(d1$ALCPROB)
+# recode CAN_05- consumption of cannabis in the past 30 days  CANCON
+d1$CANFREQ <- rep(0,length(d1$CAN_05))
+d1$CANFREQ [d1$CAN_05 == 1] <- "Never used cannabis"
+d1$CANFREQ [d1$CAN_05 == 2] <- "Not in the past 30 days"
+d1$CANFREQ [d1$CAN_05 == 3 | d1$CAN_05 == 4] <- "At least 1-3 times in the past 30 days"
+d1$CANFREQ [d1$CAN_05 >= 5 & d1$CAN_05 < 8] <- "At least once a week"
+d1$CANFREQ [d1$CAN_05 == 8] <- "daily"
+
+d1$CANFREQ <- factor(d1$CANFREQ, 
+                       levels = c("Never used cannabis",
+                                  "Not in the past 30 days",
+                                  "At least 1-3 times in the past 30 days",
+                                  "At least once a week",
+                                  "daily"))
+table(d1$CANFREQ)
+
+# recode CAN_15 how has cannabis increased (CANCON)
+d1$CANCON <- rep(0,length(d1$CAN_15))
+d1$CANCON [d1$CAN_15 == 1] <- "Increased"
+d1$CANCON [d1$CAN_15 == 2] <- "Decreased"
+d1$CANCON [d1$CAN_15 == 4] <- "Same"
+d1$CANCON [d1$CAN_15 == 3 | d1$CAN_15 == 6] <- "Not Applicable/ Valid Skip"
+
+d1$CANCON <- factor(d1$CANCON, 
+                       levels = c("Increased",
+                                  "Decreased",
+                                  "Same",
+                                  "Not Applicable/ Valid Skip"))
+table(d1$CANCON)
+
+# recode CAN_30 to CANPROB
+
+d1$CANPROB <- rep(0,length(d1$CAN_30))
+d1$CANPROB [d1$CAN_30 == 1] <- "Yes"
+d1$CANPROB [d1$CAN_30 == 2] <- "No"
+d1$CANPROB [d1$CAN_30 == 6] <- "Valid Skip"
+
+d1$CANPROB <- factor(d1$CANPROB, 
+                       levels = c("Yes",
+                                  "No",
+                                  "Valid Skip"))
+table(d1$CANPROB)
+```
+
+# 3.) Key Measures
+There is a total of 8 variables I will be using, all of which have been recoded to be able to analyze further. 
+
+Starting with the two predictor variables in this study, PEDUC_LC and PEMPSTC, which I have recoded to BAPLUS and EMPLOY, respectively. Since there was not any prior data collected on income or wealth, these would act as predictors for substance use within the sample. Employment status and education levels are strong indicators of socioeconomic status. I will be using them to compare whether or not people are more likely to use substances while employed vs not employed and if so, which ones. The same case for whether or not the person holds at least a bachelor's degree or not. 
+PEDUC_LC was recoded to BAPLUS, separating people with a bachelor's degree (or higher) from those that do not. PEMPSTC was recoded to separate people into 3 categories- those who are employed and working, those who are employed but absent from work and those who are unemployed. 
+
+```{r}
+table(d1$BAPLUS)
+table(d1$EMPLOY)
+
+round(prop.table(table(d1$BAPLUS))*100, 2)
+round(prop.table(table(d1$EMPLOY))*100, 2)
+
+freq(ordered(d1$BAPLUS), plot = FALSE)
+freq(ordered(d1$EMPLOY), plot = FALSE)
+IQR(d1$EMPLOY, na.rm = TRUE)
+Mode(d1$BAPLUS)
+Mode(d1$EMPLOY)
+
+
+ggplot(data = d1, aes(x = BAPLUS, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightblue", color = "lightblue") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.9)) +
+  labs(x = "Education level", y = "Percentage of people",
+  title = "Education Status of Individuals")
+
+ggplot(data = d1, aes(x = EMPLOY, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightgreen", color = "lightgreen") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.9)) +
+  labs(x = "Employment Status", y = "Percentage of people",
+  title = "Employment Status of Individuals")
+```
+For BAPLUS, roughly 40.6% (n = 1546) of the sample includes people with at least a bachelor's degree, whereas those without a bachelor's degree made up roughly 59.4% of the total sample (n = 2263). The latter group also includes people who are still completing their bachelor's degree. This was supported when Mode was calculated.
+
+As for employment status, the majority of the sample includes people who are currently employed at 56.2% (n = 2139). The second largest group are unemployed individuals at roughly 40.1% (n = 1526). Finally, the smallest group in this sample are individuals who are technically unemployed but are absent from work (including due to reasons related to COVID-19) at 3.8% (n = 144). The Interquartile Range for this group was equal to 2. 
+
+### ALCOHOL 
+ For Alcohol use, three variables were used: ALC_05, ALC_20, ALC_35, all of which were recoded. These three variables will be used to represent an outcome variable on whether or not alcohol use has increased during the COVID-19 pandemic.In particular, these 3 variables will help with answering questions on whether or not alcohol use has increased during the pandemic, who is more likely to drink based on socioeconomic status and the overall frequency of alcohol consumption. 
+
+* ALC_05 was attributed to a survey question and coded as an ordinal variable, where respondents were asked if they drank alcoholic beverages in the past 30 days. This variable was recoded to ALCFREQ, which was divided into 3 levels: yes, no and never drank alcohol. The majority of respondents reported they had drank an alcoholic beverage in the past 30 days at 68.8% (n = 2620). Those who had no alcoholic beverages in the past 30 days made up 16% of the respondents (n = 610). The smallest group were respondents who had never had an alcoholic beverage at 15.2% (n=580). The Interquartile Range was equal to 1 and when looking at the mode, most respondents belonged to the "yes" category, which was previously confirmed by the proportions table. 
+
+* ALC_20 was attributed to a survey question and coded as an ordinal variable where respondents were asked asked about their average alcohol consumption. This variable was recoded to ALCCON, which was divided into 4 levels: increased, decreased, same and not applicable/valid skip to indicate respondents who do not drink alcohol or to whom the question does not apply. For this variable, the majority of respondents claimed that alcohol consumption had remained, on average, the same as before the pandemic at 45.5%. Those who claimed it increased made up 17.9% of the sample and those who claimed it decreased made up 15.4% of the population. Interquartile range for this variable was 1 and the mode also confirmed that for most people, their alcohol consumption remained the same. 
+
+* ALC_35 was attributed to a survey question and coded as an ordinal variable where respondents were asked whether or not they had an alcoholic drink while knowing they had a problem that was made worse by alcohol.This variable was recoded to ALCPROB, which was divided into 3 levels: yes, no and valid skip to indicate people who do not drink. Overwhelmingly, many reported that no, they did not consume alcohol while knowing they had problems made worse by alcohol at 66%. The smallest group were individuals who did consume alcohol knowing that they had problems made worse by alcohol at 5.6%. The IQR for this variable was 1 and the mode also confirmed that most people belonged to the "No" category.  
+
+```{r error = TRUE}
+
+freq(ordered(d1$ALCFREQ), plot = FALSE)
+freq(ordered(d1$ALCCON), plot = FALSE)
+freq(ordered(d1$ALCPROB), plot = FALSE)
+
+IQR(d1$ALCFREQ)
+IQR(d1$ALCCON)
+IQR(d1$ALCPROB)
+
+Mode(d1$ALCFREQ, na.rm = TRUE)
+Mode(d1$ALCCON)
+Mode(d1$ALCPROB)
+
+ggplot(data = d1, aes(x = ALCFREQ, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightblue", color = "lightblue") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Frequency of Alcohol Consumption", y = "Percentage of people",
+  title = "Alcohol Consumption Within The Past 30 Days")
+
+ggplot(data = d1, aes(x = ALCCON, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightgreen", color = "lightgreen") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Pattern of Alcohol Consumption", y = "Percentage of people",
+  title = "Alcohol Consumption Patterns During The Covid-19")
+
+ggplot(data = d1, aes(x = ALCPROB, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightpink", color = "lightpink") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Drank Alcohol", y = "Percentage of people",
+  title = "Alcohol Consumption While Knowing You Had a Problem")
+
+```
+
+
+CANNABIS 
+
+ For Cannabis use, three variables were used: CAN_05, CAN_15, CAN_30, all of which were recoded. These three variables will be used to represent an outcome variable on cannabis use patterns during the COVID-19 pandemic.In particular, these 3 variables will help with answering questions on whether or not cannabis use has increased during the pandemic, who is more likely to consume cannabis based on socioeconomic status and the overall frequency of cannabis consumption. 
+
+* CAN_05 was attributed to a survey question and coded as an ordinal variable, where respondents were asked the frequency of their cannabis use in the past 30 days. This variable was recoded as CANFREQ, with 4 levels: Never used cannabis, a few times (1-3) in the past 30 days, not in the past 30 days, at least once a week and daily. The majority of respondents reported never having used cannabis  at 71.4%, which is significantly higher than the people who reported never having used alcohol. Those who did use cannabis at least 1-3 times the past 30 days consisted of 5.8% of the total sample, while weekly use was reported by 5.4% of respondents. Out of all levels, those who consume cannabis daily made up the smallest proportion at 4.4%. The IQR for CANFREQ was 1, which indicated very little variability in the survey responses. Mode also confirmed that the bulk of respondents had never used cannabis prior to the study.     
+
+* CAN_15 was attributed to a survey question and coded as an ordinal variable, where respondents were asked on average, whether or not they observed any changes in their cannabis use during that time. This variable was recoded as CANCON, with 4 levels: increased, decreased, same and not applicable/valid skip. Excluding the last category (not applicable/valid skip), the bulk of respondents reported the same cannabis consumption during the pandemic that they had before the pandemic. The IQR for this level was 0, showing that there was no variation in the middle 50% of this data. Since the majority of respondents reported that they had never consumed cannabis, the mode also indicates this proportion. 
+
+* CAN_30 was attributed to a survey question and coded as an ordinal variable, where respondents were asked if they continued to use cannabis when they knew they had a serious problem. This variable was recoded as CANPROB, with 3 levels: yes, no, valid skip. Similar to CANCON, the majority of respondents opted for the valid skip at 83.4%. However, the second-largest group of individuals were those who reported “No”. In other words, they had not knowingly consumed cannabis knowing that they had a problem made worse by cannabis at 15.1%, roughly. the smallest group for this survey question answered “yes” at 1.6%, claiming that they had consumed cannabis knowing that they had a problem that was made worse by cannabis. the interquartile range for this variable was equal to 0 indicating that there was no variation within the middle 50% of respondents, and the mode indicated that most people skipped this question.
+
+
+```{r}
+freq(ordered(d1$CANFREQ), plot = FALSE)
+freq(ordered(d1$CANCON), plot = FALSE)
+freq(ordered(d1$CANPROB), plot = FALSE)
+
+round(prop.table(table(d1$CANCON))*100,2)
+
+IQR(d1$CANFREQ)
+IQR(d1$CANCON)
+IQR(d1$CANPROB)
+
+Mode(d1$CANFREQ)
+Mode(d1$CANCON)
+Mode(d1$CANPROB)
+
+# graphs
+ggplot(data = d1, aes(x = CANFREQ, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightblue", color = "lightblue") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Frequency of Cannabis Consumption", y = "Percentage of people",
+  title = "Cannabis Consumption Within The Past 30 Days") + 
+  coord_flip()
+
+ggplot(data = d1, aes(x = CANCON, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightgreen", color = "lightgreen") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Pattern of Cannabis Consumption", y = "Percentage of people",
+  title = "Cannabis Consumption Patterns During The Covid-19")
+
+ggplot(data = d1, aes(x = CANPROB, y = ..count.. / sum(..count..))) + 
+  geom_bar(fill = "lightpink", color = "lightpink") + 
+  scale_y_continuous(labels = scales::percent, limits = c(0,0.75)) +
+  labs(x = "Consumed Cannabis", y = "Percentage of people",
+  title = "Cannabis Consumption While Knowing You Had a Problem")
+```
+
+
+- subsetting 
+
+```{r}
+```
+
+
+d1$education <- recode(d1$education, 
+                     "1" = "Less than high school degree",
+                     "2" = "High school degree or equivalent",
+                     "3" = "Some college or university but no degree or certificate",
+                     "4" = "Trade or university certificate",
+                     "5" = "Bachelor degree",
+                     "6" = "Graduate or professional degree", 
+                     "666" = "Don't know",
+                     "777" = "Refused")
+d1$education <- factor(d1$education,
+                     levels = c("Less than high school degree",
+                     "High school degree or equivalent",
+                     "Some college or university but no degree or certificate",
+                     "Trade or university certificate",
+                     "Bachelor degree",
+                     "Graduate or professional degree"))
